@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.data/
+.env*
+!.env.example
+cdk.out/
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+cdk-outputs.json
+
+.next-dev/

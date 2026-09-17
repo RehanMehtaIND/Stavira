@@ -1,0 +1,1 @@
+{"app":"npx tsx infrastructure/app.ts","context":{"@aws-cdk/aws-lambda-nodejs:useLatestRuntimeVersion":true}}

@@ -1,0 +1,9 @@
+node_modules
+.next
+cdk.out
+.data
+package-lock.json
+test-results
+playwright-report
+
+.next-dev

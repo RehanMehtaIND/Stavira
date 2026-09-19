@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export default function SignIn() {
   return (
     <div className="auth-page">
-      <Brand />
+      <Brand href="/" />
       <Suspense>
         <AuthForm local={mode() === 'local'} />
       </Suspense>

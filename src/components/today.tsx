@@ -16,11 +16,19 @@ import {
   LoaderCircle,
   Pause,
 } from 'lucide-react';
-import { type CheckIn, type Energy, type Recommendation, progress } from '@/domain/schema';
+import {
+  type CheckIn,
+  type Energy,
+  type Recommendation,
+  progress,
+  leaves,
+  ready,
+} from '@/domain/schema';
 import { useWorkspace } from './use-workspace';
 import { api } from './api';
 import { PageHeading, Empty, GoalLink } from './ui';
 import { Modal } from './modal';
+const ENERGY_RANK: Record<Energy, number> = { low: 0, medium: 1, high: 2 };
 export function Today() {
   const { data, error, setError, reload } = useWorkspace();
   const [minutes, setMinutes] = useState(30);
@@ -37,6 +45,20 @@ export function Today() {
   const goal = data?.goals.find((g) => g.id === rec?.goalId);
   const task = goal?.tasks.find((t) => t.id === rec?.taskId);
   const active = data?.goals.filter((g) => g.status === 'active') ?? [];
+  const preview = active
+    .flatMap((g) => leaves(g).map((t) => ({ t, g })))
+    .filter(
+      ({ t, g }) =>
+        ready(t, g, new Date()) &&
+        ENERGY_RANK[t.energy] <= ENERGY_RANK[energy] &&
+        t.estimatedMinutes <= minutes,
+    )
+    .sort(
+      (a, b) =>
+        b.t.priority + b.t.impact - (a.t.priority + a.t.impact) ||
+        a.t.order - b.t.order ||
+        a.t.id.localeCompare(b.t.id),
+    )[0];
   const completed = data?.events.filter((e) => e.action === 'complete') ?? [];
   async function run(label: string, fn: () => Promise<void>) {
     setBusy(label);
@@ -384,7 +406,18 @@ export function Today() {
                     Find another step <ArrowRight size={17} />
                   </button>
                 )}
-                <div className="quiet-note">A little progress is still progress.</div>
+                <p className="quiet-note">
+                  <span />A little progress is still progress.
+                </p>
+                {!message && preview && (
+                  <div className="next-preview">
+                    <div>
+                      <p className="eyebrow">UP NEXT ON {energy.toUpperCase()} ENERGY (PREVIEW)</p>
+                      <small>{preview.t.estimatedMinutes} min</small>
+                    </div>
+                    <h3>{preview.t.title}</h3>
+                  </div>
+                )}
               </div>
             )}
           </section>

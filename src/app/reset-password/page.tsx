@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export default function ResetPassword() {
   return (
     <div className="auth-page">
-      <Brand />
+      <Brand href="/" />
       <Suspense>
         <ResetForm />
       </Suspense>

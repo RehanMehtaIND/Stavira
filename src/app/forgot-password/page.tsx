@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export default function ForgotPassword() {
   return (
     <div className="auth-page">
-      <Brand />
+      <Brand href="/" />
       <ForgotForm local={mode() === 'local'} />
     </div>
   );

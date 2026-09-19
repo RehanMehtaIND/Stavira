@@ -4,6 +4,7 @@ export const metadata: Metadata = {
   title: 'Stavira — Big goals. Right next step.',
   description:
     'Turn your goals into a plan that moves with you. Find the right next action for your time and energy.',
+  icons: { icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }] },
 };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

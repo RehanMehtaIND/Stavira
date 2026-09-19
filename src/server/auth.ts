@@ -6,11 +6,14 @@ import {
   ConfirmSignUpCommand,
   InitiateAuthCommand,
   GlobalSignOutCommand,
+  ForgotPasswordCommand,
+  ConfirmForgotPasswordCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { z } from 'zod';
 import { localDb } from './repositories/local';
 import { mode, required } from './config';
+import { appOrigin } from './http';
 import { AppError } from './errors';
 const client = new CognitoIdentityProviderClient({
   maxAttempts: 2,
@@ -25,7 +28,12 @@ const inputSchema = z.object({
   password: z.string().min(10).max(128),
   name: z.string().trim().min(1).max(80).optional(),
 });
+const resetSchema = inputSchema
+  .pick({ email: true, password: true })
+  .extend({ code: z.string().min(1).max(200), confirm: z.string().min(1).max(128) });
 const digest = (s: string) => createHash('sha256').update(s).digest('hex');
+const resetLink = (email: string, code: string) =>
+  `${appOrigin()}/reset-password?email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`;
 const options = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
@@ -63,8 +71,11 @@ export async function authenticate() {
   }
 }
 export async function authAction(action: string, body: unknown) {
-  const jar = await cookies();
   const local = mode() === 'local';
+  if (action === 'forgot')
+    return forgotPassword(z.object({ email: inputSchema.shape.email }).parse(body).email, local);
+  if (action === 'reset') return resetPassword(resetSchema.parse(body), local);
+  const jar = await cookies();
   if (action === 'signout') {
     const token = jar.get('stavira_session')?.value;
     if (token) {
@@ -205,6 +216,82 @@ export async function authAction(action: string, body: unknown) {
       action === 'signup'
         ? 'Could not create account. Use a unique email and a password with upper/lowercase letters, a number, and a symbol.'
         : 'Email or password is incorrect.',
+    );
+  }
+}
+
+async function forgotPassword(email: string, local: boolean) {
+  if (local) {
+    const db = localDb();
+    try {
+      db.prepare('DELETE FROM resets WHERE expires<?').run(Date.now());
+      const user = db.prepare('SELECT id FROM users WHERE email=?').get(email);
+      if (!user) return { sent: true };
+      const token = randomBytes(32).toString('hex');
+      db.prepare('DELETE FROM resets WHERE userId=?').run(user.id);
+      db.prepare('INSERT INTO resets VALUES (?,?,?)').run(
+        digest(token),
+        user.id,
+        Date.now() + 3600000,
+      );
+      return { sent: true, devLink: resetLink(email, token) };
+    } finally {
+      db.close();
+    }
+  }
+  try {
+    await client.send(
+      new ForgotPasswordCommand({ ClientId: required('COGNITO_CLIENT_ID'), Username: email }),
+    );
+  } catch (e) {
+    if (e instanceof Error && e.name === 'LimitExceededException')
+      throw new AppError(429, 'Too many reset attempts. Please wait a few minutes and try again.');
+  }
+  return { sent: true };
+}
+async function resetPassword(input: z.infer<typeof resetSchema>, local: boolean) {
+  if (input.password !== input.confirm)
+    throw new AppError(400, 'Both passwords must match. Please retype them.');
+  if (local) {
+    const db = localDb();
+    try {
+      const row = db
+        .prepare(
+          'SELECT resets.userId AS userId FROM resets JOIN users ON users.id=resets.userId WHERE resets.token=? AND resets.expires>? AND users.email=?',
+        )
+        .get(digest(input.code), Date.now(), input.email);
+      if (!row) throw new AppError(400, 'This reset link has expired or was already used.');
+      const salt = randomBytes(16).toString('hex');
+      db.prepare('UPDATE users SET hash=? WHERE id=?').run(
+        salt + ':' + scryptSync(input.password, salt, 64).toString('hex'),
+        row.userId,
+      );
+      db.prepare('DELETE FROM resets WHERE userId=?').run(row.userId);
+      db.prepare('DELETE FROM sessions WHERE userId=?').run(row.userId);
+      return { ok: true };
+    } finally {
+      db.close();
+    }
+  }
+  try {
+    await client.send(
+      new ConfirmForgotPasswordCommand({
+        ClientId: required('COGNITO_CLIENT_ID'),
+        Username: input.email,
+        ConfirmationCode: input.code,
+        Password: input.password,
+      }),
+    );
+    return { ok: true };
+  } catch (e) {
+    const name = e instanceof Error ? e.name : '';
+    if (name === 'ExpiredCodeException' || name === 'CodeMismatchException')
+      throw new AppError(400, 'This reset link has expired or was already used.');
+    if (name === 'LimitExceededException' || name === 'TooManyFailedAttemptsException')
+      throw new AppError(429, 'Too many reset attempts. Please wait a few minutes and try again.');
+    throw new AppError(
+      400,
+      'Could not set that password. Use 10+ characters with upper/lowercase letters, a number, and a symbol.',
     );
   }
 }

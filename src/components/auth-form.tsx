@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { ArrowRight, LoaderCircle } from 'lucide-react';
 import { api } from './api';
 export function AuthForm({ local }: { local: boolean }) {
@@ -73,7 +74,10 @@ export function AuthForm({ local }: { local: boolean }) {
           </label>
         ) : (
           <label>
-            Password
+            <span className="label-row">
+              Password
+              {action === 'signin' && <Link href="/forgot-password">Forgot password?</Link>}
+            </span>
             <input
               name="password"
               aria-label="Password"

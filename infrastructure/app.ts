@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 import { App, Stack, Duration, CfnOutput, RemovalPolicy, CfnParameter } from 'aws-cdk-lib';
 import { Table, AttributeType, BillingMode } from 'aws-cdk-lib/aws-dynamodb';
-import { UserPool, AccountRecovery, UserPoolClient } from 'aws-cdk-lib/aws-cognito';
+import {
+  UserPool,
+  AccountRecovery,
+  UserPoolClient,
+  UserPoolOperation,
+} from 'aws-cdk-lib/aws-cognito';
 import { HttpApi, HttpMethod, CorsHttpMethod, CfnStage } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
@@ -62,6 +67,20 @@ const client = new UserPoolClient(stack, 'WebClient', {
   accessTokenValidity: Duration.hours(1),
   refreshTokenValidity: Duration.days(30),
 });
+const authMessages = new NodejsFunction(stack, 'authMessagesFunction', {
+  entry: resolve('functions/auth-messages.ts'),
+  runtime: Runtime.NODEJS_22_X,
+  architecture: Architecture.ARM_64,
+  memorySize: 256,
+  timeout: Duration.seconds(5),
+  environment: { APP_ORIGIN: origin.valueAsString },
+  bundling: { minify: true, sourceMap: true },
+  logGroup: new LogGroup(stack, 'authMessagesLogs', {
+    retention: RetentionDays.ONE_MONTH,
+    removalPolicy: RemovalPolicy.DESTROY,
+  }),
+});
+pool.addTrigger(UserPoolOperation.CUSTOM_MESSAGE, authMessages);
 const authorizer = new HttpUserPoolAuthorizer('Cognito', pool, { userPoolClients: [client] });
 const api = new HttpApi(stack, 'Api', {
   defaultAuthorizer: authorizer,

@@ -1,11 +1,10 @@
 import { ArrowUpRight, Compass } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 export function Brand() {
   return (
     <Link href="/today" className="brand">
-      <span className="brand-icon">
-        <Compass size={23} />
-      </span>
+      <Image src="/favicon.svg" alt="" width={44} height={44} className="brand-icon" priority />
       stavira<span className="brand-dot">.</span>
     </Link>
   );

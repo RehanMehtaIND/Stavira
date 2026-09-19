@@ -1535,6 +1535,7 @@ label small {
   color: var(--muted);
   margin: 25px 0 0;
 }
+.auth-switch a,
 .auth-switch button {
   border: 0;
   background: none;
@@ -1585,9 +1586,13 @@ label small {
 .mismatch {
   color: #99372b;
 }
-.dev-note a {
-  color: var(--accent);
-  text-decoration: underline;
+.auth-sent.warn {
+  background: #fff8ed;
+  border-color: #e8d3ae;
+  color: #8a6115;
+}
+.local-link {
+  margin-top: 16px;
 }
 @media (min-width: 1450px) {
   .workspace {

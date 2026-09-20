@@ -21,7 +21,7 @@ export function Shell({
         Skip to content
       </a>
       <header className="app-header">
-        <Brand />
+        <Brand href="/" />
         <nav aria-label="Main navigation">
           {[
             { url: '/today', label: 'Today', Icon: Sun },

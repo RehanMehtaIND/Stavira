@@ -1,12 +1,15 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Sparkles, LoaderCircle, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Sparkles, LoaderCircle, Check, CalendarClock } from 'lucide-react';
 import { type Plan, type Goal, type Adaptation, progress } from '@/domain/schema';
+import { deadlineRisk } from '@/domain/deadline';
 import { useWorkspace } from './use-workspace';
 import { api } from './api';
 import { PageHeading } from './ui';
 import { PlanEditor } from './plan-editor';
+const duration = (m: number) =>
+  m >= 90 ? `${Math.round(m / 60)} hours` : `${Math.max(1, Math.round(m))} min`;
 export function GoalDetail({ id }: { id: string }) {
   const { data, error, setError, reload } = useWorkspace();
   const [busy, setBusy] = useState('');
@@ -51,6 +54,7 @@ export function GoalDetail({ id }: { id: string }) {
   const skips = data.events.filter((e) => e.goalId === id && e.action === 'skip').length;
   const overdue =
     !!goal.deadline && goal.deadline < new Date().toISOString().slice(0, 10) && p.percent < 100;
+  const risk = deadlineRisk(goal, data.events);
   return (
     <>
       <Link className="back-link" href="/goals">
@@ -70,6 +74,38 @@ export function GoalDetail({ id }: { id: string }) {
         <div role="alert" className="error">
           {error}
         </div>
+      )}
+      {risk && risk.level !== 'on-track' && (
+        <section className={`deadline-risk ${risk.level}`}>
+          <span className="mini-icon">
+            <CalendarClock size={18} />
+          </span>
+          <div>
+            <h2>
+              {risk.daysLeft <= 0
+                ? 'Your target date has passed.'
+                : risk.level === 'behind'
+                  ? 'This plan needs more time than the date allows.'
+                  : 'This will be a tight finish.'}
+            </h2>
+            <p>
+              About {duration(risk.remainingMinutes)} of work is left
+              {risk.daysLeft > 0
+                ? ` across ${risk.daysLeft} day${risk.daysLeft === 1 ? '' : 's'}`
+                : ''}
+              {risk.daysLeft > 0 ? `, or ${duration(risk.requiredMinutesPerDay)} a day` : ''}.{' '}
+              {risk.basis === 'observed'
+                ? `You’ve averaged ${duration(risk.paceMinutesPerDay)} a day over the last two weeks.`
+                : `That is measured against an assumed ${duration(risk.paceMinutesPerDay)} a day until you log some time.`}
+            </p>
+            <p className="muted">
+              Estimates use your own recorded pace. Nothing changes unless you choose it.
+            </p>
+          </div>
+          <a href="#adapt" className="button secondary">
+            Adjust the plan <ArrowRight size={15} />
+          </a>
+        </section>
       )}
       {busy && (
         <div role="status" className="busy-line">
@@ -219,18 +255,20 @@ export function GoalDetail({ id }: { id: string }) {
         />
       )}
       {goal.status === 'active' && (
-        <section className="adaptation-section">
+        <section className="adaptation-section" id="adapt">
           <div>
             <p className="eyebrow">A PLAN THAT MOVES WITH YOU</p>
             <h2>Things change. Your plan can, too.</h2>
             <p className="muted">
-              {overdue
-                ? 'Your target date has passed. Review the remaining scope and choose a new deadline.'
-                : blocked
-                  ? `${blocked} step${blocked === 1 ? ' is' : 's are'} blocked. A small preparation step can help you move again.`
-                  : skips >= 2
-                    ? 'Some steps have been skipped more than once. Let’s make the next attempt easier.'
-                    : 'If your time, priorities, or progress have changed, make a small adjustment.'}
+              {risk && risk.level === 'behind'
+                ? 'The remaining work is more than the date allows. Choose a new date, trim the scope, or break the next step down.'
+                : overdue
+                  ? 'Your target date has passed. Review the remaining scope and choose a new deadline.'
+                  : blocked
+                    ? `${blocked} step${blocked === 1 ? ' is' : 's are'} blocked. A small preparation step can help you move again.`
+                    : skips >= 2
+                      ? 'Some steps have been skipped more than once. Let’s make the next attempt easier.'
+                      : 'If your time, priorities, or progress have changed, make a small adjustment.'}
             </p>
           </div>
           <div>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowRight, Check, Clock, Leaf, RefreshCw, Sun, Target, Zap } from 'lucide-react';
 import { Brand } from '@/components/ui';
 import { ContactModal } from '@/components/contact-modal';
+import { hasSession } from '@/server/auth';
 const VIBES = [
   { Icon: Zap, label: '15 min focus' },
   { Icon: Leaf, label: 'Low energy mode' },
@@ -29,7 +30,8 @@ const FEATURES = [
     body: 'Life happened? No red alerts or overdue badges. Stavira gracefully realigns your roadmap without punishment.',
   },
 ];
-export default function Landing() {
+export default async function Landing() {
+  const signedIn = await hasSession();
   return (
     <div className="landing">
       <header className="landing-nav">
@@ -40,12 +42,20 @@ export default function Landing() {
             <Link href="#features">Features</Link>
           </nav>
           <div className="landing-actions">
-            <Link href="/signin" className="landing-signin">
-              Sign in <ArrowRight size={15} />
-            </Link>
-            <Link href="/signin?mode=signup" className="button primary">
-              Get started free
-            </Link>
+            {signedIn ? (
+              <Link href="/today" className="button primary">
+                Go to your workspace <ArrowRight size={15} />
+              </Link>
+            ) : (
+              <>
+                <Link href="/signin" className="landing-signin">
+                  Sign in <ArrowRight size={15} />
+                </Link>
+                <Link href="/signin?mode=signup" className="button primary">
+                  Get started free
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -66,8 +76,12 @@ export default function Landing() {
                 headspace you have today.
               </p>
               <div className="hero-cta">
-                <Link href="/signin?mode=signup" className="button primary large">
-                  Find your next step <ArrowRight size={18} />
+                <Link
+                  href={signedIn ? '/today' : '/signin?mode=signup'}
+                  className="button primary large"
+                >
+                  {signedIn ? 'Back to your next step' : 'Find your next step'}{' '}
+                  <ArrowRight size={18} />
                 </Link>
                 <p className="landing-note">Your ambition. A plan that moves with you.</p>
               </div>

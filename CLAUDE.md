@@ -21,6 +21,8 @@ npx tsx --test tests/domain.test.ts
 npx tsx --test --test-name-pattern="duration calibration" tests/domain.test.ts
 ```
 
+`tests/` holds `domain` (plan validation, ranking, the service loop), `api` (origin, body, Lambda owner scoping), `auth` (local password reset), and `deadline` (risk projection). Node runs each file in its own process, so a file may set `STAVIRA_MODE` / `STAVIRA_DATA_DIR` at module scope without affecting the others.
+
 E2E requires a separately running dev server — `playwright.config.ts` has no `webServer`:
 
 ```sh
@@ -55,6 +57,8 @@ A new route needs four coordinated edits, or it 404s in one mode but not the oth
 
 Also update [docs/API.md](docs/API.md), which is the maintained contract table.
 
+Not every Lambda is an API route. [functions/auth-messages.ts](functions/auth-messages.ts) is a Cognito `CustomMessage` trigger wired with `pool.addTrigger` — it rewrites the forgot-password email so it carries a link to `/reset-password` instead of a bare code, by embedding `event.request.codeParameter` (`{####}`, substituted by Cognito after the Lambda returns) in the URL. It returns other trigger sources untouched, so sign-up verification mail is unchanged.
+
 ## Persistence contract
 
 [repositories/types.ts](src/server/repositories/types.ts) is a deliberately tiny three-method interface — `list`, `get`, `commit` — and `commit` is the **only** write path. Both implementations honor the same rules:
@@ -66,7 +70,7 @@ Also update [docs/API.md](docs/API.md), which is the maintained contract table.
 
 A goal is a **single bounded aggregate** — its phases and flat task list live in one record, capped at 100 tasks / 20 phases / 120 KB of JSON. There is no separate task record, so any task change is a goal revision bump.
 
-`LocalRepository` opens and closes a fresh `node:sqlite` connection per operation and creates its schema idempotently in `localDb()`, which is also where the local `users`/`sessions` tables live.
+`LocalRepository` opens and closes a fresh `node:sqlite` connection per operation and creates its schema idempotently in `localDb()`, which is also where the local `users` / `sessions` / `resets` tables live.
 
 ## Where the invariants are enforced
 
@@ -80,7 +84,9 @@ Completed work is immutable, and the checks are spread across handlers: `goals` 
 
 ## The determinism boundary
 
-**No LLM chooses a task.** `rank()` in [recommendation.ts](src/domain/recommendation.ts) is a pure weighted sum of nine normalized factors (weights in the `WEIGHTS` table there), with deterministic tie-breaks on `order` then task ID. It also derives the two behavioral signals from event history: per-category duration ratio clamped to 0.5–2×, and recent same-task skips in the same energy context.
+**No LLM chooses a task.** `rank()` in [recommendation.ts](src/domain/recommendation.ts) is a pure weighted sum of nine normalized factors (weights in the `WEIGHTS` table there), with deterministic tie-breaks on `order` then task ID. It also derives the two behavioral signals from event history: recent same-task skips in the same energy context, and `categoryRatio()` — the per-category actual/estimated ratio clamped to 0.5–2×.
+
+`categoryRatio()` is exported and has a second caller: `deadlineRisk()` in [deadline.ts](src/domain/deadline.ts) scales remaining leaf estimates by it, then compares the implied minutes-per-day against the user's logged pace over a 14-day window to yield `on-track` / `tight` / `behind`. Plan-health projection is deterministic for the same reason ranking is — keep it that way. Both modules are pure and Next-free, so they run in Lambda and are directly unit-testable.
 
 The three `AIProvider` methods have narrow, validated roles ([ai/provider.ts](src/server/ai/provider.ts), [ai/bedrock.ts](src/server/ai/bedrock.ts)):
 
@@ -96,13 +102,19 @@ Tokens never reach client JavaScript. Cookies `stavira_session` / `stavira_refre
 
 Client fetches go through [components/api.ts](src/components/api.ts), which transparently retries once through `/api/auth/refresh` on a 401 and otherwise redirects to `/signin`. `/session` ([app/session/page.tsx](src/app/session/page.tsx)) is the server-side landing page for the same recovery. The `(workspace)` group layout is `force-dynamic` and redirects to `/session` when `authenticate()` throws.
 
+`authAction` handles `forgot` and `reset` **before** its `await cookies()` call. Neither needs a session, and keeping them above that line is what lets [tests/auth.test.ts](tests/auth.test.ts) call them outside a request scope — moving them below would break those tests. Reset tokens are stored SHA-256-hashed with a one-hour expiry, are single-use, are bound to the issuing email, and clear every session for that user on success. In local mode there is no mailer, so the link comes back as `devLink` in the response; that branch is unreachable in production because `config.ts` refuses local adapters there.
+
+`hasSession()` is a deliberately cheap cookie-presence check used by the landing page to swap its nav for "Go to your workspace". It is a hint, never an authorization decision — `/today` still enforces auth independently, and a stale cookie simply falls through the existing `/session` recovery. Reading it makes `/` dynamic rather than prerendered.
+
 Local auth (scrypt + hashed opaque session tokens) is development-only by design and is unreachable in production.
 
 ## Client conventions
 
 Screens are thin: `src/app/**/page.tsx` renders a component from [src/components/](src/components/). Data loading is one `useWorkspace()` hook fetching `GET /workspace` and a `reload()` after mutations — there is no client cache or store, and database state is authoritative.
 
-Styling is a single ~2000-line [globals.css](src/app/globals.css) with semantic class names and CSS custom properties. **No Tailwind, no CSS modules, no CSS-in-JS** — add classes there rather than introducing a styling dependency. Icons come from `lucide-react`.
+Styling is a single ~2900-line [globals.css](src/app/globals.css) with semantic class names and CSS custom properties. **No Tailwind, no CSS modules, no CSS-in-JS** — add classes there rather than introducing a styling dependency. Icons come from `lucide-react`, which ships no brand marks; the few needed (LinkedIn, Instagram) are inline SVG in [contact-modal.tsx](src/components/contact-modal.tsx).
+
+The same rule holds for charts. [charts.tsx](src/components/charts.tsx) builds `Columns` / `Bars` / `Dumbbells` from plain HTML and CSS — **there is no charting library and adding one is a regression.** Each is wrapped in a `Figure` that carries a table-view toggle, so no value is reachable only by hovering. Chart colors are the brand accent plus one validated lighter step of the same hue; they were checked against the white card surface rather than eyeballed, so re-validate before changing them. The app has no dark mode, and these tokens are light-only.
 
 ## Conventions and gotchas
 

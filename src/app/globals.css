@@ -1661,6 +1661,67 @@ label small {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
+.deadline-risk {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: #fffaf2;
+  border: 1px solid #ecdcc0;
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin-bottom: 30px;
+}
+.deadline-risk.behind {
+  background: #fff6f4;
+  border-color: #f0cfc7;
+}
+.deadline-risk .mini-icon {
+  background: #fff;
+  border: 1px solid #ecdcc0;
+  color: #8a6115;
+  flex-shrink: 0;
+}
+.deadline-risk.behind .mini-icon {
+  border-color: #f0cfc7;
+  color: #99372b;
+}
+.deadline-risk > div {
+  flex: 1;
+}
+.deadline-risk h2 {
+  font-size: 16px;
+  margin: 0 0 7px;
+}
+.deadline-risk p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #6b6255;
+  margin: 0;
+}
+.deadline-risk p.muted {
+  font-size: 11px;
+  color: #9a917f;
+  margin-top: 6px;
+}
+.deadline-risk .button {
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.risk-chip {
+  margin-left: 9px;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 10px;
+  font-weight: 650;
+  background: #fdf1de;
+  color: #8a6115;
+}
+.risk-chip.behind {
+  background: #fdeceb;
+  color: #99372b;
+}
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1755,7 +1816,6 @@ label small {
 .landing-links {
   display: flex;
   gap: 28px;
-  margin-right: auto;
   margin-left: 22px;
   font-size: 13px;
   font-weight: 550;
@@ -1768,6 +1828,7 @@ label small {
   display: flex;
   align-items: center;
   gap: 18px;
+  margin-left: auto;
 }
 .landing-signin {
   display: inline-flex;
@@ -2683,6 +2744,17 @@ label small {
   }
   .analytics-grid {
     grid-template-columns: 1fr;
+  }
+  .deadline-risk {
+    display: block;
+    padding: 18px;
+  }
+  .deadline-risk .mini-icon {
+    margin-bottom: 13px;
+  }
+  .deadline-risk .button {
+    width: 100%;
+    margin-top: 16px;
   }
   .columns-labels span:nth-child(even) {
     visibility: hidden;

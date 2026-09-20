@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { ArrowRight, ArrowUpRight, Target } from 'lucide-react';
 import { progress } from '@/domain/schema';
+import { deadlineRisk } from '@/domain/deadline';
 import { useWorkspace } from './use-workspace';
 import { PageHeading, Empty } from './ui';
 export function Goals() {
@@ -34,6 +35,7 @@ export function Goals() {
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
             .map((g) => {
               const p = progress(g);
+              const risk = deadlineRisk(g, data.events);
               return (
                 <Link href={`/goals/${g.id}`} key={g.id} className="goal-card">
                   <div className="goal-card-top">
@@ -56,7 +58,14 @@ export function Goals() {
                     <span style={{ width: `${p.percent}%` }} />
                   </div>
                   <div className="goal-card-footer">
-                    <span>{g.deadline ? `Target · ${g.deadline}` : 'At your own pace'}</span>
+                    <span>
+                      {g.deadline ? `Target · ${g.deadline}` : 'At your own pace'}
+                      {risk && risk.level !== 'on-track' && (
+                        <b className={`risk-chip ${risk.level}`}>
+                          {risk.level === 'behind' ? 'Needs a rethink' : 'Tight'}
+                        </b>
+                      )}
+                    </span>
                     <ArrowUpRight size={20} />
                   </div>
                 </Link>

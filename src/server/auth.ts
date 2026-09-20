@@ -40,6 +40,9 @@ const options = {
   sameSite: 'lax' as const,
   path: '/',
 };
+export async function hasSession() {
+  return !!(await cookies()).get('stavira_session');
+}
 export async function authenticate() {
   const jar = await cookies();
   const token = jar.get('stavira_session')?.value;

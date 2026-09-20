@@ -1,4 +1,12 @@
-import { type CheckIn, type Workspace, type Factors, leaves, ready } from './schema';
+import {
+  type CheckIn,
+  type Workspace,
+  type Factors,
+  type Task,
+  type ExecutionEvent,
+  leaves,
+  ready,
+} from './schema';
 export const WEIGHTS: Factors = {
   timeFit: 18,
   energyFit: 24,
@@ -11,6 +19,20 @@ export const WEIGHTS: Factors = {
   momentum: 4,
 };
 const level = { low: 1, medium: 2, high: 3 };
+export function categoryRatio(events: ExecutionEvent[], category: Task['category']) {
+  const history = events.filter(
+    (e) => e.category === category && e.action === 'complete' && e.actualMinutes,
+  );
+  return history.length
+    ? Math.max(
+        0.5,
+        Math.min(
+          2,
+          history.reduce((s, e) => s + e.actualMinutes! / e.estimatedMinutes, 0) / history.length,
+        ),
+      )
+    : 1;
+}
 export function rank(
   workspace: Workspace,
   context: CheckIn,
@@ -25,17 +47,9 @@ export function rank(
           const history = workspace.events.filter(
             (e) => e.category === task.category && e.action === 'complete' && e.actualMinutes,
           );
-          const ratio = history.length
-            ? Math.max(
-                0.5,
-                Math.min(
-                  2,
-                  history.reduce((s, e) => s + e.actualMinutes! / e.estimatedMinutes, 0) /
-                    history.length,
-                ),
-              )
-            : 1;
-          const adjustedMinutes = Math.ceil(task.estimatedMinutes * ratio);
+          const adjustedMinutes = Math.ceil(
+            task.estimatedMinutes * categoryRatio(workspace.events, task.category),
+          );
           const skips = workspace.events.filter(
             (e) =>
               e.action === 'skip' &&
